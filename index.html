@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Daily Anchor</title>
+
+<!-- iOS home-screen app behavior -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Anchor" />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' fill='%231a0a00'/%3E%3Ctext x='90' y='118' font-size='90' text-anchor='middle' fill='%23e8a040' font-family='Georgia'%3E%E2%9A%93%3C/text%3E%3C/svg%3E" />
+
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #0a0a0a; overscroll-behavior: none; }
+  body { font-family: Georgia, 'Times New Roman', serif; }
+  input, textarea, button { font-family: Georgia, serif; }
+  textarea:focus, input:focus { outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const IDENTITY_STATEMENTS = [
+  "I am present. I am not phone addicted. I'm the best husband and role model. I do — it's always worth it. I'm never too tired for my kids.",
+  "I'm lucky. Amazing things fall into my lap constantly.",
+  "I win. Constantly, every day, I find a way to win. When I enter the arena I win. I am a winner.",
+  "I am an amazing closer. I win sales at the best rate possible.",
+  "I'm a money maker. Everything I do brings in money. Money is an unlimited resource and is always flowing my way. I am a multi-millionaire. Money is the easiest part of life.",
+  "I'm mindful of God. I cherish God.",
+  "I am energy. I have the energy of a 20-year-old. I'm full of joy.",
+  "I'm an amazing morning person.",
+  "I'm an extremely happy person. Joy fills my life. I like people and people like me.",
+  "I am an amazing, confident, and impactful speaker. I share my message.",
+  "I am extremely confident. I am the most comfortable in every conversation.",
+  "I'm an active, engaged dad.",
+  "I am perfect health. I'm ripped and cut.",
+];
+
+const DAILY_CHOICES = [
+  { key: "fast",      choice: "Fast clean today",               desc: "WIN = nothing broke the fast. LOSS = I broke it. No gray area.", goal: "Goal: 219 lbs" },
+  { key: "move",      choice: "Move your body",                 desc: "Even 20 minutes counts. Momentum is the goal.", goal: "Goal: Ripped" },
+  { key: "bible",     choice: "Study the word of God",          desc: "Feed your spirit before the world feeds you noise.", goal: "Goal: Get close to God" },
+  { key: "work",      choice: "Maximize efficiency and output", desc: "Every hour counts. Work like it.", goal: "Goal: Maximize Revenue" },
+  { key: "social",    choice: "No social media",                desc: "You already decided. Don't negotiate with yesterday's decision.", goal: "Goal: Get the most out of life" },
+  { key: "present",   choice: "Enjoy your life and kids",       desc: "This is the whole point. Be here for it.", goal: "Goal: Be an Amazing Dad / Increase Joy" },
+  { key: "mit",       choice: "Cross off your 3 MITs",          desc: "Most Important Tasks. Not busy work — the three things that actually move the needle.", goal: "Goal: Financial Freedom" },
+  { key: "integrity", choice: "End the day with integrity",     desc: "Did who you were today match who you said you'd be?", goal: "Goal: Radically improve your life" },
+];
+
+const SCRIPTURE = [
+  { verse: "Romans 12:2",        text: "Do not conform to the pattern of this world, but be transformed by the renewing of your mind." },
+  { verse: "1 Corinthians 9:27", text: "I discipline my body and keep it under control, lest after preaching to others I myself should be disqualified." },
+  { verse: "Galatians 6:9",      text: "Let us not grow weary of doing good, for in due season we will reap, if we do not give up." },
+  { verse: "Proverbs 27:17",     text: "As iron sharpens iron, so one person sharpens another." },
+  { verse: "Joshua 1:9",         text: "Be strong and courageous. Do not be afraid; do not be discouraged, for the Lord your God will be with you wherever you go." },
+  { verse: "Philippians 4:13",   text: "I can do all things through Christ who strengthens me." },
+  { verse: "2 Timothy 1:7",      text: "God gave us a spirit not of fear but of power and love and self-control." },
+];
+
+const TODAY_KEY = new Date().toISOString().slice(0, 10);
+const STORAGE_KEY = "dailyAnchor_v1";
+
+// ── PERSISTENT STORAGE (localStorage — permanent in real Safari) ──
+function loadStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function saveStorage(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; }
+  catch (e) { return false; }
+}
+
+function getDayOfYear() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now - start) / (1000 * 60 * 60 * 24));
+}
+
+function getDayCount(storage) {
+  const startDate = storage.__startDate;
+  if (!startDate) return 1;
+  const first = new Date(startDate + "T00:00:00");
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const firstDay = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+  const diff = Math.floor((today - firstDay) / (1000 * 60 * 60 * 24));
+  return diff + 1;
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function computeStreak(history) {
+  let streak = 0;
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  for (let i = 0; i < 365; i++) {
+    const key = d.toISOString().slice(0, 10);
+    const day = history[key];
+    if (!day) break;
+    const wins = Object.values(day).filter(v => v === "win").length;
+    if (wins >= 6) { streak++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+function WinLoss({ value, onChange, winMsg, lossMsg }) {
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button onClick={() => onChange(value === "win" ? null : "win")} style={{
+          flex: 1, padding: "11px 0", borderRadius: 5, cursor: "pointer",
+          fontSize: 12, letterSpacing: 2, textTransform: "uppercase", fontWeight: "bold",
+          background: value === "win" ? "linear-gradient(135deg, #1a4010, #2a6020)" : "#0f0f0f",
+          color: value === "win" ? "#80e040" : "#3a3020",
+          border: value === "win" ? "1px solid #4a9030" : "1px solid #1e1e1e",
+        }}>{value === "win" ? "✓ WIN" : "WIN"}</button>
+        <button onClick={() => onChange(value === "loss" ? null : "loss")} style={{
+          flex: 1, padding: "11px 0", borderRadius: 5, cursor: "pointer",
+          fontSize: 12, letterSpacing: 2, textTransform: "uppercase", fontWeight: "bold",
+          background: value === "loss" ? "linear-gradient(135deg, #401010, #601818)" : "#0f0f0f",
+          color: value === "loss" ? "#e04040" : "#3a3020",
+          border: value === "loss" ? "1px solid #903030" : "1px solid #1e1e1e",
+        }}>{value === "loss" ? "✗ LOSS" : "LOSS"}</button>
+      </div>
+      {value === "win" && winMsg && <div style={{ marginTop: 6, fontSize: 11, color: "#60a030", fontStyle: "italic" }}>{winMsg}</div>}
+      {value === "loss" && lossMsg && <div style={{ marginTop: 6, fontSize: 11, color: "#c05030", fontStyle: "italic" }}>{lossMsg}</div>}
+    </div>
+  );
+}
+
+function UrgencyBanner({ storage }) {
+  const today = new Date();
+  const yearEnd = new Date(today.getFullYear(), 11, 31);
+  const daysLeftInYear = Math.ceil((yearEnd - today) / (1000 * 60 * 60 * 24));
+
+  const allKeys = Object.keys(storage).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k));
+  const wonDays = allKeys.filter(k => {
+    const d = storage[k];
+    return d && typeof d === "object" && Object.values(d).filter(v => v === "win").length >= 6;
+  }).length;
+  const lostDays = allKeys.filter(k => {
+    const d = storage[k];
+    if (!d || typeof d !== "object") return false;
+    const wins = Object.values(d).filter(v => v === "win").length;
+    return Object.keys(d).length > 0 && wins < 6;
+  }).length;
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, #0a0000 0%, #1a0400 100%)",
+      border: "1px solid #5a0000", borderLeft: "3px solid #c83020",
+      borderRadius: 8, padding: "18px", marginBottom: 20,
+    }}>
+      <div style={{ fontSize: 9, letterSpacing: 5, color: "#7a1010", textTransform: "uppercase", marginBottom: 12, textAlign: "center" }}>The Reckoning</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: "bold", color: "#60c040", letterSpacing: -2, lineHeight: 1 }}>{wonDays}</div>
+          <div style={{ fontSize: 8, letterSpacing: 2, color: "#406030", textTransform: "uppercase", marginTop: 3 }}>Days lived</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: "bold", color: "#c03020", letterSpacing: -2, lineHeight: 1 }}>{lostDays}</div>
+          <div style={{ fontSize: 8, letterSpacing: 2, color: "#704030", textTransform: "uppercase", marginTop: 3 }}>Days wasted</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: "bold", color: "#e8a040", letterSpacing: -2, lineHeight: 1 }}>{daysLeftInYear}</div>
+          <div style={{ fontSize: 8, letterSpacing: 2, color: "#705020", textTransform: "uppercase", marginTop: 3 }}>Days left this year</div>
+        </div>
+      </div>
+      <div style={{ background: "#0a0000", padding: "10px 12px", borderRadius: 5, borderLeft: "2px solid #7a1010", fontSize: 12, color: "#c08070", fontStyle: "italic", lineHeight: 1.5 }}>
+        {lostDays === 0 && wonDays === 0 && <span>You haven't logged a single day yet. The dream is still a dream. <span style={{ color: "#ff6040" }}>Make today count.</span></span>}
+        {lostDays === 0 && wonDays > 0 && <span>Zero wasted days. Don't be the man who broke this streak. <span style={{ color: "#ff6040" }}>Stay the man you've been.</span></span>}
+        {lostDays > 0 && wonDays > lostDays && <span>You've wasted <span style={{ color: "#ff6040", fontWeight: "bold" }}>{lostDays}</span> {lostDays === 1 ? "day" : "days"} you can't get back. Every wasted day is a piece of the man you didn't become. <span style={{ color: "#ff6040" }}>Don't add to the pile.</span></span>}
+        {lostDays > 0 && wonDays <= lostDays && <span>You're losing more days than you're winning. <span style={{ color: "#ff6040", fontWeight: "bold" }}>That's your dream dying in slow motion.</span> Turn it around today.</span>}
+      </div>
+    </div>
+  );
+}
+
+function HistoryTracker({ storage }) {
+  const days = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    const isToday = i === 0;
+    const data = storage[key];
+    if (isToday) {
+      const wins = data ? Object.values(data).filter(v => v === "win").length : 0;
+      const losses = data ? Object.values(data).filter(v => v === "loss").length : 0;
+      const isStreakDay = wins >= 6;
+      days.push({ key, status: (wins > 0 || losses > 0) ? (isStreakDay ? "win" : "partial") : "today", wins, losses, isToday: true });
+    } else if (!data || Object.keys(data).length === 0) {
+      days.push({ key, status: "future", wins: 0, losses: 0 });
+    } else {
+      const wins = Object.values(data).filter(v => v === "win").length;
+      const losses = Object.values(data).filter(v => v === "loss").length;
+      days.push({ key, status: wins >= 6 ? "win" : "loss", wins, losses });
+    }
+  }
+  const streakDays = days.filter(d => d.status === "win").length;
+  const missDays = days.filter(d => d.status === "loss").length;
+  const trackedDays = streakDays + missDays;
+
+  return (
+    <div style={{ background: "#0e0800", border: "1px solid #2a1800", borderRadius: 8, padding: "14px 16px" }}>
+      <div style={{ fontSize: 9, letterSpacing: 4, color: "#8a6030", textTransform: "uppercase", marginBottom: 12 }}>Your Record</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>
+        {days.map((day) => (
+          <div key={day.key} title={day.key} style={{
+            width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+            background: day.isToday ? "#3a2010" : day.status === "win" ? "#2a6020" : day.status === "loss" ? "#601818" : day.status === "partial" ? "#3a3010" : "#0e0a06",
+            border: day.isToday ? "1px solid #e8a040" : day.status === "win" ? "1px solid #4a9030" : day.status === "loss" ? "1px solid #903030" : day.status === "partial" ? "1px solid #806020" : "1px solid #1a1200",
+          }} />
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: "bold", color: "#60a030", letterSpacing: -1 }}>{streakDays}</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#4a6030", textTransform: "uppercase" }}>streak days</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: "bold", color: "#c04030", letterSpacing: -1 }}>{missDays}</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#6a3020", textTransform: "uppercase" }}>misses</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: "bold", color: trackedDays > 0 ? "#e8a040" : "#2e1e08", letterSpacing: -1 }}>{trackedDays > 0 ? Math.round((streakDays / trackedDays) * 100) : 0}%</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#6a4020", textTransform: "uppercase" }}>win rate</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [declared, setDeclared] = useState(false);
+  const [activeStatement, setActiveStatement] = useState(0);
+  const [pulse, setPulse] = useState(false);
+  const [reflection, setReflection] = useState("");
+  const [showReflection, setShowReflection] = useState(false);
+  const [mirrorAnswer, setMirrorAnswer] = useState(null);
+  const [results, setResults] = useState({});
+  const [streak, setStreak] = useState(0);
+  const [storageData, setStorageData] = useState({});
+  const [sprintDay, setSprintDay] = useState(1);
+  const [todayFocus, setTodayFocus] = useState(null);
+  const [focusInput, setFocusInput] = useState("");
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    const storage = loadStorage();
+    if (!storage.__startDate) { storage.__startDate = TODAY_KEY; saveStorage(storage); }
+    setResults(storage[TODAY_KEY] || {});
+    setStreak(computeStreak(storage));
+    setStorageData(storage);
+    setSprintDay(getDayCount(storage));
+    if (storage["focus_" + TODAY_KEY]) setTodayFocus(storage["focus_" + TODAY_KEY]);
+    if (storage["reflection_" + TODAY_KEY]) setReflection(storage["reflection_" + TODAY_KEY]);
+    if (storage["mirror_" + TODAY_KEY]) setMirrorAnswer(storage["mirror_" + TODAY_KEY]);
+  }, []);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setActiveStatement(s => (s + 1) % IDENTITY_STATEMENTS.length);
+      setPulse(true);
+      setTimeout(() => setPulse(false), 600);
+    }, 4000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
+
+  const persist = (mutator) => {
+    const storage = loadStorage();
+    mutator(storage);
+    if (!storage.__startDate) storage.__startDate = TODAY_KEY;
+    saveStorage(storage);
+    setStorageData(storage);
+    setStreak(computeStreak(storage));
+    setSprintDay(getDayCount(storage));
+    return storage;
+  };
+
+  const setResult = (key, value) => {
+    const updated = { ...results };
+    if (value === null) delete updated[key]; else updated[key] = value;
+    setResults(updated);
+    persist((s) => { s[TODAY_KEY] = updated; });
+  };
+
+  const saveFocus = () => {
+    if (!focusInput.trim()) return;
+    const focus = focusInput.trim();
+    setTodayFocus(focus);
+    persist((s) => { s["focus_" + TODAY_KEY] = focus; });
+    setFocusInput("");
+  };
+
+  const clearFocus = () => {
+    setTodayFocus(null);
+    persist((s) => { delete s["focus_" + TODAY_KEY]; });
+  };
+
+  const saveReflection = (text) => {
+    setReflection(text);
+    persist((s) => { s["reflection_" + TODAY_KEY] = text; });
+  };
+
+  const setMirror = (ans) => {
+    setMirrorAnswer(ans);
+    persist((s) => { s["mirror_" + TODAY_KEY] = ans; });
+  };
+
+  const winCount = Object.values(results).filter(v => v === "win").length;
+  const lossCount = Object.values(results).filter(v => v === "loss").length;
+  const answeredCount = winCount + lossCount;
+  const todayIsStreakDay = winCount >= 6;
+  const displayStreak = todayIsStreakDay ? streak + 1 : streak;
+
+  const computeLongestStreak = (storage) => {
+    const sortedKeys = Object.keys(storage).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
+    let longest = 0, current = 0, lastBroken = 0;
+    for (const k of sortedKeys) {
+      const d = storage[k];
+      const wins = d ? Object.values(d).filter(v => v === "win").length : 0;
+      if (wins >= 6) { current++; if (current > longest) longest = current; }
+      else { if (current > 0) lastBroken = current; current = 0; }
+    }
+    return { longest, lastBroken };
+  };
+  const { longest, lastBroken } = computeLongestStreak(storageData);
+  const streakIsBroken = streak === 0 && lastBroken > 0;
+
+  const allKeys = Object.keys(storageData).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k !== TODAY_KEY);
+  const streakCount = allKeys.filter(k => {
+    const d = storageData[k];
+    return d && typeof d === "object" && Object.values(d).filter(v => v === "win").length >= 6;
+  }).length;
+  const sprintPct = allKeys.length > 0 ? Math.round((streakCount / allKeys.length) * 100) : 0;
+
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const scripture = SCRIPTURE[getDayOfYear() % SCRIPTURE.length];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e8e0d0", overflowX: "hidden", paddingTop: "env(safe-area-inset-top)" }}>
+
+      {/* WAR CRY */}
+      <div style={{ background: "linear-gradient(90deg, #5a0000 0%, #8a0808 50%, #5a0000 100%)", borderBottom: "1px solid #ff3020", padding: "10px 16px", textAlign: "center", color: "#ffe0d0", fontSize: 13, letterSpacing: 3, textTransform: "uppercase", fontWeight: "bold", textShadow: "0 0 8px #ff402080" }}>
+        Don't You DARE Half-Ass Your Life
+      </div>
+
+      {/* HEADER */}
+      <div style={{ background: "linear-gradient(135deg, #1a0a00 0%, #2d1500 50%, #1a0a00 100%)", borderBottom: "1px solid #3d2000", padding: "14px 22px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#6a4020", textTransform: "uppercase", marginBottom: 2 }}>Daily Anchor</div>
+          <div style={{ fontSize: 12, color: "#c8a060" }}>{today}</div>
+        </div>
+        <div style={{ textAlign: "center", padding: "0 20px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: streakIsBroken ? "#7a1010" : "#6a4020", textTransform: "uppercase", marginBottom: 1 }}>{streakIsBroken ? "Broken" : "Streak"}</div>
+          <div style={{ fontSize: 40, fontWeight: "bold", letterSpacing: -2, lineHeight: 1, color: streakIsBroken ? "#c03020" : displayStreak > 0 ? "#e8a040" : "#2e1e08", textShadow: (displayStreak > 0 && !streakIsBroken) ? "0 0 20px #e8a04060" : "none" }}>{streakIsBroken ? "0" : displayStreak}</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: streakIsBroken ? "#7a3020" : "#5a3010", textTransform: "uppercase", marginTop: 1 }}>{streakIsBroken ? ("lost " + lastBroken) : (displayStreak === 1 ? "day" : "days")}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#6a4020", textTransform: "uppercase", marginBottom: 2 }}>Life Change</div>
+          <div style={{ fontSize: 20, fontWeight: "bold", color: "#e8a040", letterSpacing: -1, lineHeight: 1 }}>Day {sprintDay}</div>
+          <div style={{ fontSize: 9, color: "#5a3010", marginTop: 2 }}>{sprintPct}% win rate</div>
+        </div>
+      </div>
+
+      {/* Today's win bar */}
+      <div style={{ height: 3, background: "#150a00" }}>
+        <div style={{ height: "100%", width: (Math.round((winCount / 8) * 100)) + "%", background: todayIsStreakDay ? "linear-gradient(90deg, #3a8020, #70d030)" : "linear-gradient(90deg, #8a3010, #e89030)", transition: "width 0.3s ease" }} />
+      </div>
+      <div style={{ textAlign: "center", fontSize: 9, letterSpacing: 2, padding: "4px 0 2px", color: todayIsStreakDay ? "#60a030" : "#5a3010", background: "#0a0a0a", textTransform: "uppercase" }}>
+        {winCount}/8 today {todayIsStreakDay ? "✦ streak day" : "· 6 wins = streak day"}
+      </div>
+
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 20px 60px" }}>
+
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 11, color: "#8a6030", letterSpacing: 3, textTransform: "uppercase", marginBottom: 4 }}>{getGreeting()}, Dustin</div>
+          <div style={{ fontSize: 25, lineHeight: 1.2, color: "#f0e8d8", fontStyle: "italic", letterSpacing: -0.5 }}>Who are you going to be today?</div>
+        </div>
+
+        {/* TODAY'S ONE THING */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#8a6030", textTransform: "uppercase", marginBottom: 10 }}>Today's One Thing</div>
+          {todayFocus ? (
+            <div style={{ background: "linear-gradient(135deg, #1a1400 0%, #2a2000 100%)", border: "1px solid #6a4020", borderLeft: "4px solid #ffc040", borderRadius: 8, padding: "16px 18px", position: "relative" }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: "#8a6030", textTransform: "uppercase", marginBottom: 6 }}>Above all else today:</div>
+              <div style={{ fontSize: 17, color: "#ffd880", lineHeight: 1.4, fontWeight: "bold" }}>{todayFocus}</div>
+              <button onClick={clearFocus} style={{ position: "absolute", top: 8, right: 10, background: "transparent", border: "none", color: "#5a4020", fontSize: 11, cursor: "pointer", letterSpacing: 1 }}>change ✕</button>
+            </div>
+          ) : (
+            <div style={{ background: "#120a00", border: "1px dashed #3a2810", borderRadius: 8, padding: "16px 18px" }}>
+              <div style={{ fontSize: 12, color: "#6a5030", fontStyle: "italic", marginBottom: 10 }}>What is the one thing — that if you did it today — would make the day a win?</div>
+              <input type="text" value={focusInput} onChange={e => setFocusInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveFocus()} placeholder="Type your focus..." style={{ width: "100%", background: "#0a0600", border: "1px solid #2a1800", borderRadius: 5, padding: "10px 12px", color: "#e0d0b0", fontSize: 14, boxSizing: "border-box", marginBottom: 10 }} />
+              <button onClick={saveFocus} disabled={!focusInput.trim()} style={{ background: focusInput.trim() ? "linear-gradient(135deg, #8a5010, #c87820)" : "#1a1000", border: "none", borderRadius: 5, padding: "9px 20px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: focusInput.trim() ? "#fff0d0" : "#4a3010", fontWeight: "bold", cursor: focusInput.trim() ? "pointer" : "default" }}>Lock It In</button>
+            </div>
+          )}
+        </div>
+
+        {/* IDENTITY CAROUSEL */}
+        <div style={{ background: "linear-gradient(135deg, #140800, #1e0e00)", border: "1px solid #3d2000", borderLeft: "3px solid #e8a040", borderRadius: 8, padding: "16px 18px", marginBottom: 20, minHeight: 76, position: "relative" }}>
+          <div style={{ position: "absolute", top: 7, right: 11, fontSize: 9, letterSpacing: 3, color: "#4a2810", textTransform: "uppercase" }}>I AM</div>
+          <div style={{ fontSize: 15, lineHeight: 1.55, fontStyle: "italic", marginTop: 4, color: pulse ? "#ffc060" : "#e8d0a0", transition: "color 0.4s ease" }}>{IDENTITY_STATEMENTS[activeStatement]}</div>
+        </div>
+
+        {/* MAIN GOALS */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#8a6030", textTransform: "uppercase", marginBottom: 12 }}>Your Goals</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[{ num: 1, label: "Radical Transformation" }, { num: 2, label: "God and Family" }, { num: 3, label: "Financial / Time Freedom" }, { num: 4, label: "Elite Health" }].map(g => (
+              <div key={g.num} style={{ background: "linear-gradient(135deg, #120a00, #1e1000)", border: "1px solid #3a2000", borderLeft: "2px solid #e8a040", borderRadius: 6, padding: "10px 12px" }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#6a4010", textTransform: "uppercase", marginBottom: 3 }}>Goal {g.num}</div>
+                <div style={{ fontSize: 13, color: "#e0c888", lineHeight: 1.3 }}>{g.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <UrgencyBanner storage={storageData} />
+
+        {/* PROGRESS + TRACKER */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 9, letterSpacing: 3, color: "#6a4020", textTransform: "uppercase" }}>Win Rate</span>
+            <span style={{ fontSize: 9, color: "#6a4020" }}>{sprintPct}%</span>
+          </div>
+          <div style={{ height: 3, background: "#1e1000", borderRadius: 2, overflow: "hidden", marginBottom: 16 }}>
+            <div style={{ height: "100%", width: sprintPct + "%", background: "linear-gradient(90deg, #8a4010, #e8a040)", borderRadius: 2 }} />
+          </div>
+          <HistoryTracker storage={storageData} />
+        </div>
+
+        {/* SCRIPTURE */}
+        <div style={{ background: "#0e0800", border: "1px solid #2a1800", borderRadius: 8, padding: "14px 16px", marginBottom: 22 }}>
+          <div style={{ fontSize: 9, letterSpacing: 4, color: "#8a6030", textTransform: "uppercase", marginBottom: 7 }}>Today's Word</div>
+          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#d8c8a8", fontStyle: "italic", marginBottom: 5 }}>"{scripture.text}"</div>
+          <div style={{ fontSize: 11, color: "#8a6030", letterSpacing: 1 }}>— {scripture.verse}</div>
+        </div>
+
+        {/* MORNING CHALLENGE */}
+        {!declared && (
+          <div style={{ background: "#0a0000", border: "1px solid #7a1010", borderRadius: 10, padding: "22px 18px", marginBottom: 22, textAlign: "center" }}>
+            <div style={{ fontSize: 9, letterSpacing: 5, color: "#7a1010", textTransform: "uppercase", marginBottom: 12 }}>Before you touch anything else</div>
+            <div style={{ fontSize: 19, color: "#ff4040", fontWeight: "bold", marginBottom: 10, lineHeight: 1.3, letterSpacing: -0.5 }}>What would you tell<br />your kids to do?</div>
+            <div style={{ fontSize: 13, color: "#a07060", marginBottom: 18, lineHeight: 1.6, fontStyle: "italic" }}>Live up to the expectations you have for them.<br /><span style={{ color: "#e08060" }}>Now go be that man.</span></div>
+            <div style={{ fontSize: 14, color: "#ff5030", fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", marginBottom: 16, lineHeight: 1.3, textShadow: "0 0 10px #ff302040" }}>Don't you DARE half-ass your life.</div>
+            <button onClick={() => setDeclared(true)} style={{ background: "linear-gradient(135deg, #8a0000, #c82020)", border: "none", borderRadius: 6, padding: "12px 28px", fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "#ffe0e0", fontWeight: "bold", cursor: "pointer" }}>I'm That Man — Let's Go</button>
+          </div>
+        )}
+
+        {declared && (
+          <div style={{ background: "#0a1200", border: "1px solid #2a4010", borderLeft: "3px solid #60a030", borderRadius: 8, padding: "10px 16px", marginBottom: 22, fontSize: 12, color: "#80c040", letterSpacing: 1 }}>✓ Identity locked. Now execute.</div>
+        )}
+
+        {streakIsBroken && (
+          <div style={{ background: "linear-gradient(135deg, #1a0000, #2a0000)", border: "1px solid #7a1010", borderLeft: "4px solid #c83020", borderRadius: 8, padding: "16px 18px", marginBottom: 22 }}>
+            <div style={{ fontSize: 10, letterSpacing: 4, color: "#c83020", textTransform: "uppercase", marginBottom: 8, fontWeight: "bold" }}>💀 The Wreckage</div>
+            <div style={{ fontSize: 15, color: "#e08070", lineHeight: 1.5, marginBottom: 8, fontWeight: "bold" }}>You had a {lastBroken}-day streak. <span style={{ color: "#ff5030" }}>You killed it.</span></div>
+            <div style={{ fontSize: 12, color: "#a06050", lineHeight: 1.6, fontStyle: "italic" }}>All that work — gone. {longest > lastBroken && <span>Your best ever was {longest} days. </span>}Are you going to be the man who lets it stay dead, or the man who starts over and goes further?</div>
+            <div style={{ fontSize: 11, color: "#7a3020", letterSpacing: 2, textTransform: "uppercase", marginTop: 10, textAlign: "right" }}>Today is Day 1 of the comeback</div>
+          </div>
+        )}
+
+        {/* NON-NEGOTIABLES */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#8a6030", textTransform: "uppercase", marginBottom: 12 }}>Today's Non-Negotiables</div>
+          {DAILY_CHOICES.map((item, idx) => (
+            <div key={item.key} style={{ paddingTop: 14, paddingBottom: 16, borderBottom: idx < DAILY_CHOICES.length - 1 ? "1px solid #181000" : "none" }}>
+              <div style={{ fontSize: 15, color: "#e0d0b0", marginBottom: 2 }}>{item.choice}</div>
+              <div style={{ fontSize: 11, color: "#5a4020", fontStyle: "italic" }}>{item.desc}</div>
+              {item.goal && <div style={{ fontSize: 11, color: "#8a6030", letterSpacing: 1, marginTop: 3 }}>{item.goal}</div>}
+              <WinLoss value={results[item.key] || null} onChange={(v) => setResult(item.key, v)} winMsg="Locked in. That's the man you said you'd be." lossMsg="That's a piece of the man you didn't become. Don't make it two." />
+            </div>
+          ))}
+          <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#5a4020" }}>{winCount}W · {lossCount}L · {8 - answeredCount} left</span>
+            {todayIsStreakDay && <span style={{ fontSize: 11, color: "#80c040", letterSpacing: 2, textTransform: "uppercase" }}>✦ Streak day earned</span>}
+          </div>
+        </div>
+
+        {/* EVENING RECKONING */}
+        <div style={{ marginBottom: 20 }}>
+          <button onClick={() => setShowReflection(!showReflection)} style={{ background: "transparent", border: "1px solid #3a2010", borderRadius: 6, padding: "12px 18px", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "#8a6030", cursor: "pointer", width: "100%" }}>{showReflection ? "Close" : "Evening Reckoning →"}</button>
+          {showReflection && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ background: "linear-gradient(135deg, #0a0e14, #0e1420)", border: "1px solid #1a2a3a", borderLeft: "3px solid #4080c0", borderRadius: 8, padding: "20px 18px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 9, letterSpacing: 4, color: "#3a6080", textTransform: "uppercase", marginBottom: 12 }}>The Mirror</div>
+                <div style={{ fontSize: 22, color: "#c0d8f0", fontWeight: "bold", lineHeight: 1.3, marginBottom: 10, letterSpacing: -0.5 }}>Did I get better today?</div>
+                <div style={{ fontSize: 12, color: "#5a7890", lineHeight: 1.6, fontStyle: "italic", marginBottom: 16 }}>Not perfect. Not someone else's standard.<br />Better than the man who woke up this morning.</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setMirror(mirrorAnswer === "yes" ? null : "yes")} style={{ flex: 1, padding: "10px 0", borderRadius: 5, cursor: "pointer", fontSize: 12, letterSpacing: 2, textTransform: "uppercase", fontWeight: "bold", background: mirrorAnswer === "yes" ? "linear-gradient(135deg, #102840, #1a4060)" : "#0a0a0a", color: mirrorAnswer === "yes" ? "#60b0e0" : "#2a3a4a", border: mirrorAnswer === "yes" ? "1px solid #3a80b0" : "1px solid #1a1a1a" }}>{mirrorAnswer === "yes" ? "✓ YES" : "YES"}</button>
+                  <button onClick={() => setMirror(mirrorAnswer === "no" ? null : "no")} style={{ flex: 1, padding: "10px 0", borderRadius: 5, cursor: "pointer", fontSize: 12, letterSpacing: 2, textTransform: "uppercase", fontWeight: "bold", background: mirrorAnswer === "no" ? "linear-gradient(135deg, #2a1a00, #3a2800)" : "#0a0a0a", color: mirrorAnswer === "no" ? "#c09040" : "#2a3a4a", border: mirrorAnswer === "no" ? "1px solid #806020" : "1px solid #1a1a1a" }}>{mirrorAnswer === "no" ? "✗ NOT YET" : "NOT YET"}</button>
+                </div>
+                {mirrorAnswer === "yes" && <div style={{ marginTop: 10, fontSize: 11, color: "#4090c0", fontStyle: "italic" }}>That's all it takes. Compound that every day and watch what happens.</div>}
+                {mirrorAnswer === "no" && <div style={{ marginTop: 10, fontSize: 11, color: "#a08030", fontStyle: "italic" }}>Honest answer. Now you know what tomorrow's fight is. Show up for it.</div>}
+              </div>
+              <div style={{ fontSize: 12, color: "#6a5030", marginBottom: 8, fontStyle: "italic" }}>Anything else to put down before tomorrow:</div>
+              <textarea value={reflection} onChange={e => saveReflection(e.target.value)} placeholder="Be honest with yourself..." style={{ width: "100%", minHeight: 80, background: "#0e0800", border: "1px solid #2a1800", borderRadius: 6, padding: "12px 14px", color: "#d8c8a8", fontSize: 14, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
+              <div style={{ marginTop: 8, fontSize: 11, color: "#5a3010", textAlign: "right", fontStyle: "italic" }}>No audience. Just you and God.</div>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div style={{ textAlign: "center", paddingTop: 18, borderTop: "1px solid #181000" }}>
+          <div style={{ fontSize: 9, letterSpacing: 4, color: "#2e1e08", textTransform: "uppercase", marginBottom: 12 }}>Don't you DARE half-ass your life</div>
+          <div style={{ fontSize: 9, color: "#3a2810", marginBottom: 8, letterSpacing: 1 }}>Tracked dates: {Object.keys(storageData).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).length} · Start: {storageData.__startDate || "not set"}</div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button onClick={() => {
+              if (!confirm("Wipe all history and start fresh as Day 1?")) return;
+              const fresh = { __startDate: TODAY_KEY };
+              saveStorage(fresh); setStorageData(fresh); setResults({}); setStreak(0); setSprintDay(1); setTodayFocus(null); setReflection(""); setMirrorAnswer(null);
+            }} style={{ background: "transparent", border: "1px solid #2a1810", borderRadius: 4, padding: "6px 12px", fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "#3a2810", cursor: "pointer" }}>Reset · Day 1</button>
+            <button onClick={() => {
+              const data = loadStorage();
+              const blob = JSON.stringify(data);
+              navigator.clipboard && navigator.clipboard.writeText(blob);
+              alert("Backup copied to clipboard. Paste it somewhere safe.\n\n" + blob);
+            }} style={{ background: "transparent", border: "1px solid #2a1810", borderRadius: 4, padding: "6px 12px", fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "#3a2810", cursor: "pointer" }}>Backup</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
